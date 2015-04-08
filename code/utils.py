@@ -1,7 +1,10 @@
+
+
 from __future__ import with_statement
 from collections import defaultdict
 
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 #### READ ASCII DATA FROM FILE #############
@@ -90,9 +93,17 @@ def obs_times(tt, no_obs, tstart=None):
     obs = np.array([obs_start, obs_end]).T
     return obs
 
-#def loghist(data, bins=10):
-#    mindata = np.min(data)
-#    maxdata = np.max(data)
-#    bin_range = np.logspace(mindata, maxdata, bins)
+def loghist(data, bins=10, normed=False, weights=None):
+    mindata = np.log10(np.min(data))
+    maxdata = np.log10(np.max(data))
+    bin_range = np.logspace(mindata, maxdata, bins)
+
+    h, bin_edges = np.histogram(data, bins=bin_range, normed=normed, weights=weights)
+    bin_diff = np.diff(bin_edges)
 
 
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    ax.bar(bin_edges[:-1], h, width=bin_diff, color="grey", edgecolor="none", linewidth=0, alpha=0.4)
+    ax.set_xscale("log")
+    return fig, ax
