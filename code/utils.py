@@ -2,7 +2,6 @@ from __future__ import with_statement
 from collections import defaultdict
 
 import numpy as np
-import generaltools as gt
 
 
 #### READ ASCII DATA FROM FILE #############
