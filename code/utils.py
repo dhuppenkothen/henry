@@ -1,3 +1,6 @@
+from __future__ import with_statement
+from collections import defaultdict
+
 import numpy as np
 import generaltools as gt
 
@@ -54,17 +57,10 @@ def load_gbm_bursts(datadir="./"):
     ctime_frac = ctime_mjd - mjd
     ctime_seconds = ctime_frac*24.*60.*60.
 
-
     ### load start and end times of periods with no observations
     noobs = np.loadtxt(datadir+"SGR1550jan22nonobs.txt")
     return tte_bursts, ctime_seconds, noobs
 
 
-
-#for t in tte_bursts:
-#    f = np.where((ctime_bursts > t-0.1) & (ctime_bursts < t + 0.1))
-#    print(f[0])
-#    if len(f) > 0:
-#        common_bursts.append([t, ctime_bursts[f[0]]])
 
 
