@@ -14,12 +14,7 @@ import collections
 CHypers = collections.namedtuple('CHypers',
         ['pi_mu', 'pi_std', 'K', 'cc', 'ell'])
 
-xx = 0
-
 def log_intensity(tt, ww, hypers):
-    global xx
-    xx += 1
-    print(xx, np.array(tt).size)
     Phi = np.zeros((hypers.K, np.array(tt).size))
     for kk in range(hypers.K):
         Phi[kk] = np.exp(-0.5*(tt - hypers.cc[kk])**2/hypers.ell**2)
@@ -36,7 +31,7 @@ def log_prior(ww, hypers):
     """
     return -0.5*np.dot(ww, ww)/(hypers.pi_std**2)
 
-def log_likelihood(ww, hypers, tt, t_obs):
+def log_likelihood(ww, hypers, tt, t_obs, bin_c=None, bin_w=None):
     """
     Log likelihood of basis weights given Poisson time data
 
@@ -48,13 +43,21 @@ def log_likelihood(ww, hypers, tt, t_obs):
             hypers.ell    basis function widths
         tt     N, array of event times
         t_obs L,2 start and end times of L intervals with observations
+
+        Optional: bin_c, bin_w, bin centers and widths with which to approx integral
     """
     # L = - \int \lamba(t) dt + \sum_{n=1}^N \log \lambda(t_n)
-    func = lambda t: np.exp(log_intensity(t, ww, hypers))
-    integral = 0.0
-    for ll in range(len(t_obs)):
-        integral += scipy.integrate.quad(
-                func, t_obs[ll,0], t_obs[ll,1], epsabs=1e-2, epsrel=1e-2)[0]
+    if bin_c is not None:
+        integral = np.sum(np.exp(log_intensity(bin_c, ww, hypers))*bin_w)
+        #print(integral)
+    else:
+        func = lambda t: np.exp(log_intensity(t, ww, hypers))
+        integral = 0.0
+        for ll in range(len(t_obs)):
+            integral += scipy.integrate.quad(
+                    func, t_obs[ll,0], t_obs[ll,1], epsabs=1e-2, epsrel=1e-2)[0]
+        #print(integral)
+        #print('---')
     return -integral + np.sum(log_intensity(tt, ww, hypers))
 
 # Grab the data:
@@ -73,13 +76,27 @@ K = len(cc) # Number of basis functions
 
 hypers = CHypers(pi_mu=-5, pi_std=4.0, K=K, cc=cc, ell=ell)
 
-logdist = lambda w: log_prior(w, hypers) + log_likelihood(w, hypers, tt, t_obs)
+# obs_bins for integral hack
+bin_w = t_obs[:,1] - t_obs[:,0]
+bin_c = t_obs[:,0] + bin_w/2
+bps = 10
+bin_c = np.zeros(bps * len(t_obs))
+bin_w = np.zeros_like(bin_c)
+for i in range(len(t_obs)):
+    bw = (t_obs[i,1] - t_obs[i,0]) / bps
+    bin_w[i*bps:((i+1)*bps)] = bw
+    bin_c[i*bps:((i+1)*bps)] = np.linspace(
+            t_obs[i,0] + bw/2, t_obs[i,1]-bw/2, bps)
+#logdist = lambda w: log_prior(w, hypers) + \
+#        log_likelihood(w, hypers, tt, t_obs)
+logdist = lambda w: log_prior(w, hypers) + \
+        log_likelihood(w, hypers, tt, t_obs, bin_c, bin_w)
 
 ww = np.zeros(K)
-S = 20
+S = 100
 samples = slice_sample(
         ww, logdist, widths=hypers.pi_std,
-        N=S, burn=0, step_out=False, verbose=2) # S,K
+        N=S, burn=0, step_out=True, verbose=2) # S,K
 
 ww_end = samples[-1]
 
