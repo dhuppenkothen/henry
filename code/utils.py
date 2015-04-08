@@ -58,9 +58,42 @@ def load_gbm_bursts(datadir="./"):
     ctime_seconds = ctime_frac*24.*60.*60.
 
     ### load start and end times of periods with no observations
-    noobs = np.loadtxt(datadir+"SGR1550jan22nonobs.txt")
-    return tte_bursts, ctime_seconds, noobs
+    no_obs = np.loadtxt(datadir+"SGR1550jan22nonobs.txt")
+
+    tte_data = np.loadtxt(datadir+"SGR1550jan22ttedata.txt")
+    tte_data_start = tte_data[0,0]
+
+    obs = obs_times(ctime_seconds, no_obs, tte_data_start)
+    return tte_bursts, ctime_seconds, no_obs, obs
 
 
+def obs_times(tt, no_obs, tstart=None):
+    """
+    Turn un-observed periods into observed periods
+        tt: burst time data
+        no_obs: (L,2) array of start/end of unobserved time periods
+    """
+
+    ### for now, assume observations start at first time interval
+
+    if tstart is None:
+        tstart = tt[0]
+
+    obs_start  = [tstart]
+
+    ## add *end* times of unobserved periods
+    ## leave out last one because there's no data after that
+    obs_start.extend(no_obs[:-1,1])
+
+    ## end times of observed periods are start times of unobserved periods
+    obs_end = no_obs[:,0]
+
+    obs = np.array([obs_start, obs_end]).T
+    return obs
+
+#def loghist(data, bins=10):
+#    mindata = np.min(data)
+#    maxdata = np.max(data)
+#    bin_range = np.logspace(mindata, maxdata, bins)
 
 
