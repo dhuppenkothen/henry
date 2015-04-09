@@ -63,9 +63,10 @@ def load_gbm_bursts(datadir="./"):
     no_obs = np.loadtxt(datadir+"SGR1550jan22nonobs.txt")
 
     tte_data = np.loadtxt(datadir+"SGR1550jan22ttedata.txt")
-    tte_data_start = tte_data[0,0]
+    #tte_data_start = tte_data[0,0]
+    data_start = 2000.0
 
-    obs = obs_times(ctime_seconds, no_obs, tte_data_start)
+    obs = obs_times(ctime_seconds, no_obs, data_start)
     return tte_bursts, ctime_seconds, no_obs, obs
 
 

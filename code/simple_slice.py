@@ -99,11 +99,26 @@ def slice_sample(xx, logdist,
             x_l[dd] = xx[dd] - rr*widths[dd]
             x_r[dd] = xx[dd] + (1-rr)*widths[dd]
             if step_out:
+                so = 0
                 # Typo in early book editions: said compare to u, should be u'
                 while logdist_vec(x_l) > log_uprime:
+                    so += 1
                     x_l[dd] = x_l[dd] - widths[dd]
                 while logdist_vec(x_r) > log_uprime:
+                    so +=1
                     x_r[dd] = x_r[dd] + widths[dd]
+
+                if so > 100:
+                    print("%d steps out on dim %d, left %g, center %g, right %g, pi_std = %g"
+                          % (so, dd, x_l[dd], xx[dd], x_r[dd], xx[1]))
+                    print("prior x_l: %g"%logdist.log_prior(x_l))
+                    print("prior x_r: %g"%logdist.log_prior(x_r))
+                    print("prior xx: %g"%logdist.log_prior(xx))
+
+                    print("log-likelihood x_l: %g"%logdist.log_likelihood(x_l))
+                    print("log-likelihood x_r: %g"%logdist.log_likelihood(x_r))
+                    print("log-likelihood xx: %g"%logdist.log_likelihood(xx))
+
 
             # Inner loop:
             # Propose xprimes and shrink interval until good one found
