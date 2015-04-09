@@ -13,7 +13,7 @@ CHypers = collections.namedtuple('CHypers',
 
 class EventModel(object):
 
-    def __init__(self, tt, t_obs, hypers, bin_integral=False, bin_c=None, bin_w=None):
+    def __init__(self, tt, t_obs, hypers, bin_integral=False, bin_c=None, bin_w=None, bin_counts=None):
         """
         Initialize EventModel object.
         :param tt: event times
@@ -31,9 +31,9 @@ class EventModel(object):
 
         :return:
         """
+        self.tt = np.array(tt)
 
-        self.tt = tt
-        self.t_obs = t_obs
+        self.t_obs = np.array(t_obs)
 
         self.K = len(hypers.cc)
         self.cc = hypers.cc
@@ -49,6 +49,8 @@ class EventModel(object):
         self.bin_integral = bin_integral
         self.bin_c = bin_c
         self.bin_w = bin_w
+        self.log_bin_w = np.log(bin_w)
+        self.bin_counts = bin_counts
 
         return
 
@@ -62,6 +64,8 @@ class EventModel(object):
         Phi = np.zeros((self.K, np.array(times).size))
         for kk in range(self.K):
             Phi[kk] = np.exp(-0.5*(times - self.cc[kk])**2/self.ell[kk]**2)
+
+
         return self.pi_mu + np.dot(ww, Phi)
 
 
@@ -78,6 +82,7 @@ class EventModel(object):
         ww = np.random.randn(self.K)*self.pi_std
         return self.log_intensity(times, ww)
 
+
     def log_likelihood(self,ww):
         """
         Log likelihood of basis weights given Poisson time data
@@ -88,6 +93,13 @@ class EventModel(object):
             Optional: bin_c, bin_w, bin centers and widths with which to approx integral
         """
         # L = - \int \lamba(t) dt + \sum_{n=1}^N \log \lambda(t_n)
+        if self.bin_counts is not None:
+            #print("I am in binned likelihood!")
+            lograte = self.log_intensity(self.bin_c, ww) + self.log_bin_w
+            p = np.sum(self.bin_counts*lograte - np.exp(lograte))
+            return p
+
+
         if self.bin_integral:
             assert(self.bin_c is not None)
             assert(self.bin_w is not None)
@@ -105,7 +117,7 @@ class EventModel(object):
 
 
     def posterior(self, ww):
-
+        print("We are in the wrong posterior")
         logdist = self.log_prior(ww) + self.log_likelihood(ww)
         assert(not np.isnan(logdist))
         return logdist
@@ -117,7 +129,7 @@ class EventModel(object):
 
 class InferHypers(EventModel,object):
 
-    def __init__(self, tt, t_obs, cc, bin_integral=False, bin_c=None, bin_w=None):
+    def __init__(self, tt, t_obs, cc, bin_integral=False, bin_c=None, bin_w=None, bin_counts=None):
         """
         :param tt:
         :param t_obs:
@@ -146,18 +158,20 @@ class InferHypers(EventModel,object):
         self.bin_integral = bin_integral
         self.bin_c = bin_c
         self.bin_w = bin_w
+        self.log_bin_w = np.log(bin_w)
+        self.bin_counts = bin_counts
 
         return
 
     def log_prior(self, pars):
-        assert(np.size(pars)==np.size(self.cc)+3)
+        assert(np.size(pars)==self.K+3)
 
         self.pi_std = pars[1]
 
         if not (-9 < pars[0] < -1):
             return -np.inf
 
-        if not (0 < pars[1] < 20.):
+        if not (0 < pars[1] < 50.):
             return -np.inf
 
         #assert(pars[1] < 5.)
@@ -169,7 +183,7 @@ class InferHypers(EventModel,object):
 
 
     def log_likelihood(self,pars):
-        assert(np.size(pars)==np.size(self.cc)+3)
+        assert(np.size(pars)==self.K+3)
 
         self.pi_mu = pars[0]
         self.ell = np.ones_like(self.cc)*pars[2]
@@ -177,8 +191,8 @@ class InferHypers(EventModel,object):
         return EventModel.log_likelihood(self, pars[3:])
 
 
-
     def posterior(self, pars):
+        #print("We are in the right posterior")
         pr = self.log_prior(pars)
         #print(pars[:3])
         #print(pr)
@@ -190,7 +204,7 @@ class InferHypers(EventModel,object):
             return pr + self.log_likelihood(pars)
 
 # Grab the data:
-_, tt, _, t_obs = utils.load_gbm_bursts('../data/')
+_, tt, t_no_obs, t_obs = utils.load_gbm_bursts('../data/')
 
 
 # Time range:
@@ -238,17 +252,31 @@ bin_c = t_obs[:,0] + bin_w/2
 bps = 10
 bin_c = np.zeros(bps * len(t_obs))
 bin_w = np.zeros_like(bin_c)
+
+
+#### FIX ME!
+#tt -= 3.0
+
 for i in range(len(t_obs)):
     bw = (t_obs[i,1] - t_obs[i,0]) / bps
     bin_w[i*bps:((i+1)*bps)] = bw
     bin_c[i*bps:((i+1)*bps)] = np.linspace(
             t_obs[i,0] + bw/2, t_obs[i,1]-bw/2, bps)
+
+bin_counts = np.zeros_like(bin_c)
+for i in range(len(bin_c)):
+    bin_counts[i] = np.sum(((bin_c[i] - bin_w[i]/2) <= tt) & (tt <= (bin_c[i] + bin_w[i]/2)))
+
+
+print("We are being really, really evil, but it's okay, because Alexander and Yuki gave us faulty data.")
+
+#assert(np.sum(bin_counts) == len(tt))
 #logdist = lambda w: log_prior(w, hypers) + \
 #        log_likelihood(w, hypers, tt, t_obs)
 
 ## make the object
 print("Making the object")
-lpost = InferHypers(tt,t_obs, cc, bin_integral=True, bin_c=bin_c, bin_w=bin_w)
+lpost = InferHypers(tt,t_obs, cc, bin_integral=True, bin_c=bin_c, bin_w=bin_w, bin_counts=bin_counts)
 
 ww = np.zeros(lpost.K)
 S = 200
@@ -264,16 +292,18 @@ widths = np.hstack([0.5, 0.5, 500.0, np.tile(0.5, lpost.K)])
 
 samples = slice_sample(
         pars, lpost, widths=widths*50.,
-        N=10, burn=0, step_out=True, verbose=2) # S,K
+        N=100, burn=0, step_out=True, verbose=2) # S,K
 
-samples = slice_sample(
-        samples[-1], lpost, widths=widths/5.,
-        N=S, burn=0, step_out=True, verbose=2) # S,K
+#samples = slice_sample(
+#        samples[-1], lpost, widths=widths,
+#        N=S, burn=0, step_out=True, verbose=2) # S,K
 
 
 ww_end = samples[-1]
 
-for ww_end in samples[-100:-90]:
+plt.figure(1)
+
+for ww_end in samples:
 # to plot things, bin things up:
     Nbins = 300
     tbins = np.linspace(T0, Tend, Nbins)
@@ -281,9 +311,10 @@ for ww_end in samples[-100:-90]:
     #plt.clf()
     h, bins, patches = plt.hist(tt, bins=500)
     bin_size = bins[1]-bins[0]
-    plt.figure(1)
-    plt.plot(tbins, intensity*bin_size, linewidth=3)
+    plt.plot(tbins, intensity*bin_size, linewidth=3, alpha=0.5)
 
+print(lpost.log_prior(samples[-1]))
+print(lpost.log_likelihood(samples[-1]))
 #plt.figure(2)
 #plt.clf()
 #for i in range(10):
