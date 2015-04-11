@@ -73,10 +73,10 @@ class EventModel(object):
         """
         Log prior probability of basis weights up to a constant
 
-        WARNING: currently missing off -0.5*log(2pi)
+        WARNING: currently missing off -0.5*ww.size*log(2pi)
         """
         #print(self.pi_std)
-        return -0.5*np.dot(ww, ww)/(self.pi_std**2) - np.log(self.pi_std)
+        return -0.5*np.dot(ww, ww)/(self.pi_std**2) - ww.size*np.log(self.pi_std)
 
     def draw_from_prior(self, times):
         ww = np.random.randn(self.K)*self.pi_std
