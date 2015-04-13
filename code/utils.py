@@ -48,7 +48,7 @@ def load_gbm_bursts(datadir="./"):
 
     ## time conversions from CTIME MET to seconds since start of Jan 22, 2009 
     mjdrefi = 51910.0
-    #mjdreff = 7.428703703703703e-4
+    mjdreff = 7.428703703703703e-4
 
     ctime_days = ctime_bursts/(24.*60.*60.)
     ctime_mjd = ctime_days + mjdrefi#+mjdreff
