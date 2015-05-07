@@ -117,6 +117,7 @@ class EventModel(object):
 
 
     def posterior(self, ww):
+
         print("We are in the wrong posterior")
         logdist = self.log_prior(ww) + self.log_likelihood(ww)
         assert(not np.isnan(logdist))
@@ -230,6 +231,8 @@ def make_cc(T0, Tend, ell, spacing=1.0):
     cc = np.arange(T0 - ell*5, Tend + ell*5, ell*spacing)
     return cc
 
+
+## Model could have several sets of basis functions with different widths
 cc = []
 ell = []
 for e in [T/120]:
@@ -247,15 +250,10 @@ ell = np.hstack(ell)[0]*1.5
 hypers = CHypers(pi_mu=-5, pi_std=0.5, cc=cc, ell=ell)
 
 # obs_bins for integral hack
-bin_w = t_obs[:,1] - t_obs[:,0]
-bin_c = t_obs[:,0] + bin_w/2
-bps = 10
+
+bps = 10 ## bins per observation window
 bin_c = np.zeros(bps * len(t_obs))
 bin_w = np.zeros_like(bin_c)
-
-
-#### FIX ME!
-#tt -= 3.0
 
 for i in range(len(t_obs)):
     bw = (t_obs[i,1] - t_obs[i,0]) / bps
@@ -279,7 +277,7 @@ print("Making the object")
 lpost = InferHypers(tt,t_obs, cc, bin_integral=True, bin_c=bin_c, bin_w=bin_w, bin_counts=bin_counts)
 
 ww = np.zeros(lpost.K)
-S = 200
+S = 40
 
 pars = np.hstack([-5, 0.5, ell, ww])
 
