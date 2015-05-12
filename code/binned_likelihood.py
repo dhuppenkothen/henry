@@ -51,6 +51,13 @@ class EventModel(object):
 
         return
 
+    def _set_hypers(self, pars):
+
+        self.pi_mu = pars[0]
+        self.pi_std = pars[1]
+        self.ell = np.ones_like(self.cc)*pars[2]
+
+
     def log_intensity(self, times, ww):
         """
         Compute the log-intensity for the Gaussian basis functions
@@ -148,22 +155,24 @@ class InferHypers(EventModel,object):
 
         assert(np.size(pars)==self.K+3)
 
-        mean_lograte = pars[0]
+        self._set_hypers(pars)
 
-        if not (-9 < mean_lograte < -1):
+        #mean_lograte = pars[0]
+
+        if not (-9 < self.pi_mu < -1):
             return -np.inf
 
 
-        self.pi_std = pars[1]
+        #self.pi_std = pars[1]
 
         if not (0 < self.pi_std < 30.):
             return -np.inf
 
         #assert(pars[1] < 5.)
 
-        ell = pars[2]
+        #ell = pars[2]
 
-        if not (self.sep < ell < self.max_l):
+        if not (self.sep < self.ell[0] < self.max_l):
             return -np.inf
 
         return EventModel.log_prior(self, pars[3:])
@@ -172,8 +181,10 @@ class InferHypers(EventModel,object):
     def log_likelihood(self,pars):
         assert(np.size(pars)==self.K+3)
 
-        self.pi_mu = pars[0]
-        self.ell = np.ones_like(self.cc)*pars[2]
+        #self.pi_mu = pars[0]
+        #self.ell = np.ones_like(self.cc)*pars[2]
+        self._set_hypers(pars)
+
 
         return EventModel.log_likelihood(self, pars[3:])
 
@@ -196,10 +207,10 @@ class FuseData(InferHypers):
 
     def __init__(self, bin_c, bin_counts, bin_w, bin_c_int, bin_counts_int, bin_w_int, cc):
 
-        self.bin_c_int = bin_c
-        self.bin_w_int = bin_w
-        self.log_bin_w_int = np.log(bin_w)
-        self.bin_counts_int = bin_counts
+        self.bin_c_int = bin_c_int
+        self.bin_w_int = bin_w_int
+        self.log_bin_w_int = np.log(bin_w_int)
+        self.bin_counts_int = bin_counts_int
 
         ## Set the fraction of bursts observed with Integral
         self.int_fraction = 70./550.0
@@ -209,7 +220,6 @@ class FuseData(InferHypers):
         return
 
     def log_likelihood(self,pars):
-
         ll = InferHypers.log_likelihood(self, pars)
 
         lograte = np.log(self.int_fraction) + self.log_intensity(self.bin_c_int, pars[3:]) + self.log_bin_w_int
@@ -218,146 +228,151 @@ class FuseData(InferHypers):
         return ll + ll_int
 
 
-# Grab the data:
-#Fermi
-_, tt, t_no_obs, t_obs = utils.load_gbm_bursts('../data/')
-#Integral
-tt_int = np.loadtxt("../data/sgr1550_integral_bursts.dat")
+def main():
+    # Grab the data:
+    #Fermi
+    _, tt, t_no_obs, t_obs = utils.load_gbm_bursts('../data/')
+    #Integral
+    tt_int = np.loadtxt("../data/sgr1550_integral_bursts.dat")
 
-## Integral observes before Fermi, so put unobserved interval into the first
-## part
-t_no_obs = np.vstack([[0.0, t_obs[0,0]], t_no_obs])
+    ## Integral observes before Fermi, so put unobserved interval into the first
+    ## part
+    t_no_obs = np.vstack([[0.0, t_obs[0,0]], t_no_obs])
 
-# Time range:
-T0 = t_no_obs[0,0]
-Tend = t_no_obs[-1,1]
-T = Tend - T0
-#ell = T / 10.0 # lengthscale
-
-def make_cc(T0, Tend, ell, spacing=1.0):
-    """
-    Compute the centres of the Gaussian components.
-
-    :param T0: start time
-    :param Tend: end time
-    :param ell: width of the Gaussian
-    :return: array with the component centres
-    """
+    # Time range:
+    T0 = t_no_obs[0,0]
+    Tend = t_no_obs[-1,1]
     T = Tend - T0
-    #ell = T / 40.0 # lengthscale
+    #ell = T / 10.0 # lengthscale
 
-    # Basis function centres:
-    c0 = T0 - ell*5
-    cc = np.arange(T0 - ell*5, Tend + ell*5, ell*spacing)
-    return cc
+    def make_cc(T0, Tend, ell, spacing=1.0):
+        """
+        Compute the centres of the Gaussian components.
 
+        :param T0: start time
+        :param Tend: end time
+        :param ell: width of the Gaussian
+        :return: array with the component centres
+        """
+        T = Tend - T0
+        #ell = T / 40.0 # lengthscale
 
-## Model could have several sets of basis functions with different widths
-## InferHypers class currently assumes there is only one group with a shared lengthscale
-cc = []
-ell = []
-for e in [T/120]:
-    c = make_cc(T0, Tend, e, spacing=1.0)
-    cc.append(c)
-    ell.append(np.tile(e,len(c)))
-
-cc = np.hstack(cc)
-ell = np.hstack(ell)[0]*1.5
-
+        # Basis function centres:
+        c0 = T0 - ell*5
+        cc = np.arange(T0 - ell*5, Tend + ell*5, ell*spacing)
+        return cc
 
 
-#K = len(cc)
+    ## Model could have several sets of basis functions with different widths
+    ## InferHypers class currently assumes there is only one group with a shared lengthscale
+    cc = []
+    ell = []
+    for e in [T/120]:
+        c = make_cc(T0, Tend, e, spacing=1.0)
+        cc.append(c)
+        ell.append(np.tile(e,len(c)))
 
-hypers = CHypers(pi_mu=-5, pi_std=0.5, cc=cc, ell=ell)
-
-# obs_bins for integral hack
-
-bps = 10 ## bins per observation window
-bin_c = np.zeros(bps * len(t_obs))
-bin_w = np.zeros_like(bin_c)
-
-for i in range(len(t_obs)):
-    bw = (t_obs[i,1] - t_obs[i,0]) / bps
-    bin_w[i*bps:((i+1)*bps)] = bw
-    bin_c[i*bps:((i+1)*bps)] = np.linspace(
-            t_obs[i,0] + bw/2, t_obs[i,1]-bw/2, bps)
-
-bin_c_int = np.zeros(bps*len(t_no_obs))
-bin_w_int = np.zeros_like(bin_c_int)
-
-for i in range(len(t_no_obs)):
-    bw = (t_no_obs[i,1] - t_no_obs[i,0]) / bps
-    bin_w_int[i*bps:((i+1)*bps)] = bw
-    bin_c_int[i*bps:((i+1)*bps)] = np.linspace(
-            t_no_obs[i,0] + bw/2, t_no_obs[i,1]-bw/2, bps)
+    cc = np.hstack(cc)
+    ell = np.hstack(ell)[0]*1.5
 
 
 
-bin_counts = np.zeros_like(bin_c)
-for i in range(len(bin_c)):
-    bin_counts[i] = np.sum(((bin_c[i] - bin_w[i]/2) <= tt) & (tt <= (bin_c[i] + bin_w[i]/2)))
+    #K = len(cc)
+
+    hypers = CHypers(pi_mu=-5, pi_std=0.5, cc=cc, ell=ell)
+
+    # obs_bins for integral hack
+
+    bps = 100 ## bins per observation window
+    bin_c = np.zeros(bps * len(t_obs))
+    bin_w = np.zeros_like(bin_c)
+
+    for i in range(len(t_obs)):
+        bw = (t_obs[i,1] - t_obs[i,0]) / bps
+        bin_w[i*bps:((i+1)*bps)] = bw
+        bin_c[i*bps:((i+1)*bps)] = np.linspace(
+                t_obs[i,0] + bw/2, t_obs[i,1]-bw/2, bps)
+
+    bin_c_int = np.zeros(bps*len(t_no_obs))
+    bin_w_int = np.zeros_like(bin_c_int)
+
+    for i in range(len(t_no_obs)):
+        bw = (t_no_obs[i,1] - t_no_obs[i,0]) / bps
+        bin_w_int[i*bps:((i+1)*bps)] = bw
+        bin_c_int[i*bps:((i+1)*bps)] = np.linspace(
+                t_no_obs[i,0] + bw/2, t_no_obs[i,1]-bw/2, bps)
 
 
-bin_counts_int = np.zeros_like(bin_c_int)
-for i in range(len(bin_c_int)):
-    bin_counts_int[i] = np.sum(((bin_c_int[i] - bin_w_int[i]/2) <= tt_int) &
-                               (tt_int <= (bin_c_int[i] + bin_w_int[i]/2)))
+
+    bin_counts = np.zeros_like(bin_c)
+    for i in range(len(bin_c)):
+        bin_counts[i] = np.sum(((bin_c[i] - bin_w[i]/2) <= tt) & (tt <= (bin_c[i] + bin_w[i]/2)))
 
 
-print("We are being really, really evil, but it's okay, because Alexander and Yuki gave us faulty data.")
-
-#assert(np.sum(bin_counts) == len(tt))
-#logdist = lambda w: log_prior(w, hypers) + \
-#        log_likelihood(w, hypers, tt, t_obs)
-
-## make the object
-print("Making the object")
-lpost = FuseData(bin_c, bin_counts, bin_w, bin_c_int, bin_counts_int, bin_w_int, cc)
-
-ww = np.zeros(lpost.K)
-
-## ell needs to be a scalar!
-ell = T/100.
-
-pars = np.hstack([-5, 0.5, ell, ww])
-
-print("parameters: " + str(pars))
-print("initial prior: " + str(lpost.log_prior(pars)))
-print("initial likelihood: " + str(lpost.log_likelihood(pars)))
-
-print("sampling")
-
-### slice sampler initial step sizes
-widths = np.hstack([0.5, 0.5, 500.0, np.tile(0.5, lpost.K)])
-
-S = 20 ## number of samples
-
-samples = slice_sample(
-        pars, lpost, widths=widths,
-        N=S, burn=0, step_out=True, verbose=2) # S,K
+    bin_counts_int = np.zeros_like(bin_c_int)
+    for i in range(len(bin_c_int)):
+        bin_counts_int[i] = np.sum(((bin_c_int[i] - bin_w_int[i]/2) <= tt_int) &
+                                   (tt_int <= (bin_c_int[i] + bin_w_int[i]/2)))
 
 
-ww_end = samples[-1]
+    print("We are being really, really evil, but it's okay, because Alexander and Yuki gave us faulty data.")
 
-plt.figure(1)
+    #assert(np.sum(bin_counts) == len(tt))
+    #logdist = lambda w: log_prior(w, hypers) + \
+    #        log_likelihood(w, hypers, tt, t_obs)
 
-for ww_end in samples:
-# to plot things, bin things up:
-    Nbins = 300
-    tbins = np.linspace(T0, Tend, Nbins)
-    intensity = np.exp(lpost.log_intensity(tbins, ww_end[3:]))
+    ## make the object
+    print("Making the object")
+    lpost = FuseData(bin_c, bin_counts, bin_w, bin_c_int, bin_counts_int, bin_w_int, cc)
+
+    ww = np.zeros(lpost.K)
+
+    ## ell needs to be a scalar!
+    ell = T/120.
+
+    pars = np.hstack([-5, 0.5, ell, ww])
+
+    #print("parameters: " + str(pars))
+    print("initial prior: " + str(lpost.log_prior(pars)))
+    print("initial likelihood: " + str(lpost.log_likelihood(pars)))
+
+    print("sampling")
+
+    ### slice sampler initial step sizes
+    widths = np.hstack([0.5, 0.5, 500.0, np.tile(0.5, lpost.K)])
+
+    S = 10 ## number of samples
+
+    samples = slice_sample(
+            pars, lpost, widths=widths,
+            N=S, burn=0, step_out=True, verbose=2) # S,K
+
+
+    ww_end = samples[-1]
+
+    plt.figure(1)
+
+    for ww_end in samples:
+    # to plot things, bin things up:
+        Nbins = 300
+        tbins = np.linspace(T0, Tend, Nbins)
+        lpost._set_hypers(ww_end)
+        intensity = np.exp(lpost.log_intensity(tbins, ww_end[3:]))
+        #plt.clf()
+        h, bins, patches = plt.hist(tt, bins=500, range=[0.0, 86400.0])
+        h, bins, patches = plt.hist(tt_int, bins=500, range=[0,86400.0])
+        bin_size = bins[1]-bins[0]
+        plt.plot(tbins, intensity*bin_size, linewidth=3, alpha=0.5)
+
+    print(lpost.log_prior(samples[-1]))
+    print(lpost.log_likelihood(samples[-1]))
+    #plt.figure(2)
     #plt.clf()
-    h, bins, patches = plt.hist(tt, bins=500, range=[0.0, 86400.0])
-    h, bins, patches = plt.hist(tt_int, bins=500, range=[0,86400.0])
-    bin_size = bins[1]-bins[0]
-    plt.plot(tbins, intensity*bin_size, linewidth=3, alpha=0.5)
+    #for i in range(10):
+    #    plt.plot(tbins, np.exp(lpost.draw_from_prior(tbins)))
 
-print(lpost.log_prior(samples[-1]))
-print(lpost.log_likelihood(samples[-1]))
-#plt.figure(2)
-#plt.clf()
-#for i in range(10):
-#    plt.plot(tbins, np.exp(lpost.draw_from_prior(tbins)))
+    plt.show()
 
-plt.show()
 
+if __name__ == "__main__":
+    main()

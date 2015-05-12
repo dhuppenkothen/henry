@@ -205,7 +205,9 @@ class InferHypers(EventModel,object):
             return pr + self.log_likelihood(pars)
 
 # Grab the data:
+# Fermi:
 _, tt, t_no_obs, t_obs = utils.load_gbm_bursts('../data/')
+#Integral:
 
 
 # Time range:
@@ -251,7 +253,7 @@ hypers = CHypers(pi_mu=-5, pi_std=0.5, cc=cc, ell=ell)
 
 # obs_bins for integral hack
 
-bps = 10 ## bins per observation window
+bps = 1#0 ## bins per observation window
 bin_c = np.zeros(bps * len(t_obs))
 bin_w = np.zeros_like(bin_c)
 
