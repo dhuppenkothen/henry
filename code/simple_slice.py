@@ -109,8 +109,8 @@ def slice_sample(xx, logdist,
                     x_r[dd] = x_r[dd] + widths[dd]
 
                 if so > 100:
-                    print("%d steps out on dim %d, left %g, center %g, right %g, pi_std = %g"
-                          % (so, dd, x_l[dd], xx[dd], x_r[dd], xx[1]))
+                    #print("%d steps out on dim %d, left %g, center %g, right %g, pi_std = %g"
+                    #      % (so, dd, x_l[dd], xx[dd], x_r[dd], xx[1]))
                     #print("parameters: " + str(xx))
                     #print("prior x_l: %g"%logdist.log_prior(x_l))
                     #print("prior x_r: %g"%logdist.log_prior(x_r))

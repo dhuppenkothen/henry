@@ -466,10 +466,19 @@ def test_posterior():
 def mcmc_test(lpost, niter = 1000):
 
     widths = np.hstack([0.5, 500.0, 0.5, 0.5])
-    pars = lpost.sample_from_prior()
-    print(pars)
-    samples_all = np.zeros((niter, len(pars)))
+    #pars = lpost.sample_from_prior()
+    first_pars = np.array([-2.0, lpost.sep*1.5, 10.0])
+
+    ww = np.array(np.random.normal(0.0, first_pars[-1], size=lpost.K))
+    print(ww)
+    pars = np.hstack((first_pars, ww))
+    #print(pars)
+    samples_all = np.zeros((niter, 1))
     pars_all, counts_all = [], []
+
+    def reduced_posterior(ww):
+        pars[-1] = ww
+        return lpost.log_posterior(pars)
 
     for i in range(niter):
         #print("I am in simulation %i"%i)
@@ -477,13 +486,13 @@ def mcmc_test(lpost, niter = 1000):
         counts_all.append(lpost.y)
         pars_all.append(pars)
         samples = slice_sample(
-                    pars, lpost.log_posterior, widths=widths,
+                    ww, reduced_posterior, widths=widths,
                     N=10, burn=0, step_out=True, verbose=0) # S,K
 
         #print(len(samples))
-        pars_ind = np.random.choice(np.arange(len(samples)))
-        pars = samples[pars_ind]
-        samples_all[i,:] = pars
+        #pars_ind = np.random.choice(np.arange(len(samples)))
+        pars[-1] = samples[-1]
+        samples_all[i,:] = pars[-1]
 
 
     return np.array(pars_all), np.array(counts_all), samples_all
@@ -512,7 +521,7 @@ def test_mcmc():
     widths = np.hstack([0.5,500.0, 0.5, 0.5])
 
 
-    pars_all, counts_all, samples_all = mcmc_test(lpost, niter=1000)
+    pars_all, counts_all, samples_all = mcmc_test(lpost, niter=10000)
 
     print(samples_all.shape)
 
@@ -520,17 +529,17 @@ def test_mcmc():
     plt.hist(samples_all[:,0], bins=20)
     plt.title("MCMC test for pi_mu")
 
-    plt.figure()
-    plt.hist(samples_all[:,1], bins=20)
-    plt.title("MCMC test for ell")
+    #plt.figure()
+    #plt.hist(samples_all[:,1], bins=20)
+    #plt.title("MCMC test for ell")
 
-    plt.figure()
-    plt.hist(samples_all[:,2], bins=20)
-    plt.title("MCMC test for pi_std")
+    #plt.figure()
+    #plt.hist(samples_all[:,2], bins=20)
+    #plt.title("MCMC test for pi_std")
 
-    plt.figure()
-    plt.hist(samples_all[:,3], bins=20)
-    plt.title("MCMC test for ww")
+    #plt.figure()
+    #plt.hist(samples_all[:,3], bins=20)
+    #plt.title("MCMC test for ww")
 
     plt.show()
 

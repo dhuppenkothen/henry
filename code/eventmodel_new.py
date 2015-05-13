@@ -126,6 +126,13 @@ class EventModel(object):
 
     def mcmc_test(self, widths, niter = 1000):
 
+        """
+        DO NOT USE! TEST VERSION CURRENTLY IN eventmodel_tests.py!!!
+
+        :param widths:
+        :param niter:
+        :return:
+"""
         #widths = np.hstack([0.5, 500.0, 0.5, 0.5])
         pars = self.sample_from_prior()
 
