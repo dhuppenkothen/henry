@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from eventmodel_new import EventModel
+from simple_slice import slice_sample
 
 def test_model():
 
@@ -320,7 +321,7 @@ def test_prior_sampling():
 
     plt.show()
 
-    return
+    return sample_pars
 
 def test_sample_counts():
 
@@ -364,11 +365,187 @@ def test_sample_counts():
         plt.plot(lpost.x, s, lw=2)
     plt.show()
 
+    return sample_counts
+
+
+def test_posterior():
+    ## number of seconds
+    nseconds = 60*60*24
+
+    ## timescale is 1 second
+    x = np.arange(0,nseconds,0.1)
+
+    ## data just needs to be a placeholder for now
+    y = np.zeros_like(x)
+
+    ## one component
+    K = 1
+    sep = nseconds/(2.)
+    cc = np.array([sep])
+
+    ## width is going large to pass the prior
+    ell = sep*1.5
+
+    ## log-background count rate is 20
+    pi_mu = -2.0
+
+    ## don't need this parameter yet; hyperparameter prior on weights of components
+    pi_std = 5.0
+    ## set the weights:
+    ww = np.array([2.0])
+
+    pars = np.hstack(([pi_mu, ell, pi_std], ww))
+    ## did the parameters get combined correctly?
+    print(pars)
+
+    ## initialize class
+    lpost = EventModel(x,y, K, cc)
+
+    ## now make the actual simulated data:
+    yhat = lpost.model(pars)
+
+    ## Poissonify
+    ycounts = np.random.poisson(np.exp(yhat)*lpost.width)
+
+    lpost.y = ycounts
+
+    ## compute likelihoods for various values of the parameters:
+    sep_test = np.arange(1.01, 1.99, 0.1)
+    pi_mu_test = np.arange(-5.0, -1.0, 0.5)
+    ww_test = np.arange(-1, 5, 0.4)
+
+
+    sep_ll = np.zeros_like(sep_test)
+    pi_mu_ll = np.zeros_like(pi_mu_test)
+    ww_ll = np.zeros_like(ww_test)
+
+    for i,p in enumerate(pi_mu_test):
+        pars[0] = p
+        pars[1] = ell
+        pars[-1] = ww[0]
+        pi_mu_ll[i] = lpost.log_posterior(pars)
+
+    for j,s in enumerate(sep_test):
+        pars[0] = pi_mu
+        pars[1] = s*sep
+        pars[-1] = ww[0]
+        sep_ll[j] = lpost.log_posterior(pars)
+
+
+    for k,w in enumerate(ww_test):
+        pars[0] = pi_mu
+        pars[1] = ell
+        pars[-1] = w
+        ww_ll[k] = lpost.log_posterior(pars)
+
+
+    print("finished computing likelihoods")
+
+    plt.figure()
+    plt.plot(pi_mu_test, pi_mu_ll)
+    plt.vlines(pi_mu, np.min(pi_mu_ll), np.max(pi_mu_ll))
+    plt.title("Posterior for pi_mu")
+
+    plt.figure()
+    plt.plot(sep_test*sep, sep_ll)
+    plt.vlines(ell, np.min(sep_ll), np.max(sep_ll))
+
+    plt.title("Posterior for ell")
+
+    plt.figure()
+    plt.plot(ww_test, ww_ll)
+    plt.vlines(ww[0], np.min(ww_ll), np.max(ww_ll))
+
+    plt.title("Posterior for ww")
+
+    plt.show()
+
     return
+
+
+def mcmc_test(lpost, niter = 1000):
+
+    widths = np.hstack([0.5, 500.0, 0.5, 0.5])
+    pars = lpost.sample_from_prior()
+    print(pars)
+    samples_all = np.zeros((niter, len(pars)))
+    pars_all, counts_all = [], []
+
+    for i in range(niter):
+        #print("I am in simulation %i"%i)
+        lpost.y = lpost.sample_counts(pars)
+        counts_all.append(lpost.y)
+        pars_all.append(pars)
+        samples = slice_sample(
+                    pars, lpost.log_posterior, widths=widths,
+                    N=10, burn=0, step_out=True, verbose=0) # S,K
+
+        #print(len(samples))
+        pars_ind = np.random.choice(np.arange(len(samples)))
+        pars = samples[pars_ind]
+        samples_all[i,:] = pars
+
+
+    return np.array(pars_all), np.array(counts_all), samples_all
+
+def test_mcmc():
+
+
+    ## number of seconds
+    nseconds = 60*60*24
+
+    ## timescale is 1 second
+    x = np.arange(0,nseconds,100.0)
+    print(x.shape)
+    ## data just needs to be a placeholder for now
+    y = np.zeros_like(x)
+
+    ## one component
+    K = 1
+    sep = nseconds/(2.)
+    cc = np.array([sep])
+
+
+    ## initialize class
+    lpost = EventModel(x,y, K, cc)
+
+    widths = np.hstack([0.5,500.0, 0.5, 0.5])
+
+
+    pars_all, counts_all, samples_all = mcmc_test(lpost, niter=1000)
+
+    print(samples_all.shape)
+
+    plt.figure()
+    plt.hist(samples_all[:,0], bins=20)
+    plt.title("MCMC test for pi_mu")
+
+    plt.figure()
+    plt.hist(samples_all[:,1], bins=20)
+    plt.title("MCMC test for ell")
+
+    plt.figure()
+    plt.hist(samples_all[:,2], bins=20)
+    plt.title("MCMC test for pi_std")
+
+    plt.figure()
+    plt.hist(samples_all[:,3], bins=20)
+    plt.title("MCMC test for ww")
+
+    plt.show()
+
+    return pars_all, counts_all, samples_all
+
+
+
+
+
 
 #test_model()
 #test_prior()
 #test_likelihood()
 #test_prior_draw()
-#test_prior_sampling()
-test_sample_counts()
+#sample_pars = test_prior_sampling()
+#sample_counts = test_sample_counts()
+#test_posterior()
+pars_all, counts_all, samples_all = test_mcmc()

@@ -77,7 +77,7 @@ class PriorTest(binned_likelihood.FuseData):
 
     def mcmc_test(self, niter = 1000):
 
-        widths = np.hstack([0.5, 0.5, 500.0, np.tile(0.5, self.K)])
+        widths = np.hstack([0.5, 500.0,0.5, np.tile(0.5, self.K)])
         pars = self.sample_prior()
 
         samples_all = np.zeros((niter, len(pars)))

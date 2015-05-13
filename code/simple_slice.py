@@ -114,11 +114,11 @@ def slice_sample(xx, logdist,
                     #print("parameters: " + str(xx))
                     #print("prior x_l: %g"%logdist.log_prior(x_l))
                     #print("prior x_r: %g"%logdist.log_prior(x_r))
-                    print("prior xx: %g"%logdist.log_prior(xx))
+                    #print("prior xx: %g"%logdist.log_prior(xx))
 
                     #print("log-likelihood x_l: %g"%logdist.log_likelihood(x_l))
                     #print("log-likelihood x_r: %g"%logdist.log_likelihood(x_r))
-                    print("log-likelihood xx: %g"%logdist.log_likelihood(xx))
+                    #print("log-likelihood xx: %g"%logdist.log_likelihood(xx))
 
 
             # Inner loop:

@@ -1,4 +1,7 @@
 import numpy as np
+
+from simple_slice import slice_sample
+
 import matplotlib.pyplot as plt
 
 
@@ -58,21 +61,21 @@ class EventModel(object):
         assert(np.size(pars)==self.K+3)
 
 
-        if not (-5 < pi_mu < -1):
+        if not (-5 <= pi_mu <= -1):
             return -np.inf
 
-        print("pi_mu, %.3f, in right range for prior"%pi_mu)
+        #print("pi_mu, %.3f, in right range for prior"%pi_mu)
 
-        if not (self.sep < ell < self.max_l):
+        if not (self.sep <= ell <= self.max_l):
             return -np.inf
 
-        print("ell, %.3f, in right range for prior"%ell)
+        #print("ell, %.3f, in right range for prior"%ell)
 
 
-        if not (0 < pi_std < 30.):
+        if not (0 <= pi_std <= 30.):
             return -np.inf
 
-        print("pi_std, %.3f, in right range for prior"%pi_std)
+        #print("pi_std, %.3f, in right range for prior"%pi_std)
 
 
         logpr = -0.5*np.dot(ww, ww)/(pi_std**2) - ww.size*np.log(pi_std)
@@ -119,4 +122,27 @@ class EventModel(object):
         mean_fermi = np.exp(self.model(pars))*self.width
         counts_fermi = np.random.poisson(mean_fermi)
         return counts_fermi
+
+
+    def mcmc_test(self, widths, niter = 1000):
+
+        #widths = np.hstack([0.5, 500.0, 0.5, 0.5])
+        pars = self.sample_from_prior()
+
+        samples_all = np.zeros((niter, len(pars)))
+
+        for i in range(niter):
+            print("I am in simulation %i"%i)
+            self.y = self.sample_counts(pars)
+            samples = slice_sample(
+                        pars, self.log_posterior, widths=widths,
+                        N=1, burn=0, step_out=True, verbose=2) # S,K
+            pars = samples[-1]
+            samples_all[i,:] = pars
+
+
+        return samples_all
+#
+    def __call__(self, pars):
+        return self.log_posterior(pars)
 
