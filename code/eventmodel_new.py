@@ -30,10 +30,16 @@ class EventModel(object):
             self.sep = np.diff(self.cc)[0]
 
         self.max_l = self.x[-1] - self.x[0]
+
+
+        self.pi_mu_prior = [-5., -1.]
+        self.ell_prior = [self.sep, self.max_l]
+        self.pi_std_prior = [0., 30.]
+
         return
 
 
-    def model(self,pars):
+    def log_intensity(self,pars):
 
         pi_mu = pars[0]
         ell = np.ones_like(self.cc)*pars[1]
@@ -47,9 +53,9 @@ class EventModel(object):
         return pi_mu + np.dot(ww, Phi)
 
 
-    def log_counts(self, pars):
+    def log_bin_rates(self, pars):
 
-        rate = self.model(pars)
+        rate = self.log_intensity(pars)
         return rate + np.log(self.width)
 
     def log_prior(self, pars):
@@ -60,23 +66,20 @@ class EventModel(object):
 
         assert(np.size(pars)==self.K+3)
 
-
-        if not (-5 <= pi_mu <= -1):
+        if not (self.pi_mu_prior[0] <= pi_mu <= self.pi_mu_prior[1]):
             return -np.inf
 
         #print("pi_mu, %.3f, in right range for prior"%pi_mu)
 
-        if not (self.sep <= ell <= self.max_l):
+        if not (self.ell_prior[0] <= ell <= self.ell_prior[1]):
             return -np.inf
 
         #print("ell, %.3f, in right range for prior"%ell)
 
-
-        if not (0 <= pi_std <= 30.):
+        if not (self.pi_std_prior[0] <= pi_std <= self.pi_std_prior[1]):
             return -np.inf
 
         #print("pi_std, %.3f, in right range for prior"%pi_std)
-
 
         logpr = -0.5*np.dot(ww, ww)/(pi_std**2) - ww.size*np.log(pi_std)
 
@@ -86,9 +89,9 @@ class EventModel(object):
 
 
     def sample_from_prior(self):
-        pi_mu = np.random.uniform(-5,-1)
-        ell = np.random.uniform(self.sep, self.max_l)
-        pi_std = np.random.uniform(0, 30)
+        pi_mu = np.random.uniform(self.pi_mu_prior[0], self.pi_mu_prior[1])
+        ell = np.random.uniform(self.ell_prior[0], self.ell_prior[1])
+        pi_std = np.random.uniform(self.pi_std_prior[0], self.pi_std_prior[1])
         ww = np.random.normal(0.0, pi_std, size=self.K)
 
         sample_pars = np.hstack(([pi_mu, ell, pi_std], ww))
@@ -98,7 +101,7 @@ class EventModel(object):
 
     def log_likelihood(self, pars):
 
-        lograte = self.log_counts(pars)
+        lograte = self.log_bin_rates(pars)
         return np.sum(self.y*lograte - np.exp(lograte))
 
     def log_posterior(self, pars):
@@ -109,17 +112,17 @@ class EventModel(object):
             return logprior + self.log_likelihood(pars)
 
 
-    def draw_from_prior(self, pars, model=True):
+    def draw_from_prior(self, pars, log_intensity=True):
         ww = np.random.randn(self.K)*pars[2]
         pars[-1] = ww
-        if model:
-            return self.model(pars)
+        if log_intensity:
+            return self.log_intensity(pars)
         else:
             return ww
 
 
     def sample_counts(self, pars):
-        mean_fermi = np.exp(self.model(pars))*self.width
+        mean_fermi = np.exp(self.log_intensity(pars))*self.width
         counts_fermi = np.random.poisson(mean_fermi)
         return counts_fermi
 
