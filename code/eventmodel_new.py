@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 class EventModel(object):
 
-    def __init__(self, x,y, K, cc):
+    def __init__(self, x,y, K, cc, pi_mu_prior=(-5, -1), pi_std_prior=(0., 30.), ell_prior=None):
 
         ## x-coordinate of data
         self.x = x
@@ -23,18 +23,24 @@ class EventModel(object):
         ## cluster centers
         self.cc = cc
 
-        ## distance between centers, assume centers evenly spaced
-        if len(self.cc) == 1:
-            self.sep = self.cc[0]
+        if ell_prior is None:
+            ## distance between centers, assume centers evenly spaced
+            if len(self.cc) == 1:
+                self.sep = self.cc[0]
+            else:
+                self.sep = np.diff(self.cc)[0]
+
+            self.max_l = self.x[-1] - self.x[0]
+            self.ell_prior = [self.sep, self.max_l]
+
         else:
-            self.sep = np.diff(self.cc)[0]
+            self.sep = ell_prior[0]
+            self.max_l = ell_prior[1]
+            self.ell_prior = ell_prior
 
-        self.max_l = self.x[-1] - self.x[0]
 
-
-        self.pi_mu_prior = [-5., -1.]
-        self.ell_prior = [self.sep, self.max_l]
-        self.pi_std_prior = [0., 30.]
+        self.pi_mu_prior = pi_mu_prior
+        self.pi_std_prior = pi_std_prior
 
         return
 
@@ -120,12 +126,10 @@ class EventModel(object):
         else:
             return ww
 
-
     def sample_counts(self, pars):
         mean_fermi = np.exp(self.log_intensity(pars))*self.width
         counts_fermi = np.random.poisson(mean_fermi)
         return counts_fermi
-
 
     def mcmc_test(self, widths, niter = 1000):
 
