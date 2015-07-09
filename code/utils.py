@@ -33,6 +33,16 @@ def conversion(filename):
     return output_lists
 
 
+
+
+def load_data(datadir="./"):
+
+    gbm_bursts, no_obs, obs = load_gbm_bursts(datadir=datadir)
+
+    integral_bursts = np.loadtxt(datadir+"sgr1550_integral_bursts.dat")[:,2]
+
+    return gbm_bursts, integral_bursts, no_obs, obs
+
 #### LOAD FERMI/GBM DATA #######################
 #
 #
@@ -44,23 +54,34 @@ def load_gbm_bursts(datadir="./"):
 
     ### CTIME seems to be in MET seconds?
     ctime_bursts = conversion(datadir+"SGR1550jan22untrig.txt")
-    ctime_bursts = np.array([np.float(t) for t in ctime_bursts[1]])
+    ctime_met = np.array([np.float(t) for t in ctime_bursts[1]])
+    ctime_utc = ctime_bursts[2]
 
-    ## time conversions from CTIME MET to seconds since start of Jan 22, 2009 
+
+    ## Time conversion from UTC hh:mm:ss format to seconds since 00:00:00
+    ctime_utc_split = [c.split(":") for c in ctime_utc]
+    ctime_utc_seconds = np.array([np.float(c[2]) + np.float(c[1])*60. +
+                         np.float(c[0])*3600.0 for c in ctime_utc_split])
+
+    ## time conversions from CTIME MET to seconds since start of Jan 22, 2009
     mjdrefi = 51910.0
     mjdreff = 7.428703703703703e-4
 
-    ctime_days = ctime_bursts/(24.*60.*60.)
-    ctime_mjd = ctime_days + mjdrefi#+mjdreff
+    ## days since MET reference time
+    ctime_days = ctime_met/(24.*60.*60)
+    ctime_mjd = ctime_days + mjdrefi #+ mjdreff
 
-    jd = 2454853.500000
-    mjd = jd - 2400000.5
+    ## MJD of 2009-01-22
+    mjd = 54853
 
     ctime_frac = ctime_mjd - mjd
-    ctime_seconds = ctime_frac*24.*60.*60.
+    ctime_seconds = ctime_frac*(60.*60.*24.)-3.
+
+    bursts_all = combine_tte_ctime(tte_bursts, ctime_seconds, datadir=datadir)
 
     ### load start and end times of periods with no observations
     no_obs = np.loadtxt(datadir+"SGR1550jan22nonobs.txt")
+    bursts_all = remove_occulted(bursts_all, no_obs)
 
     tte_data = np.loadtxt(datadir+"SGR1550jan22ttedata.txt")
 
@@ -69,21 +90,62 @@ def load_gbm_bursts(datadir="./"):
     tte_data_start = tte_data[0,0]
     #data_start = 2000.0
 
-    obs = obs_times(ctime_seconds, no_obs, tte_data_start)
-    return tte_bursts, ctime_seconds, no_obs, obs
+    obs = obs_times(no_obs, tte_data_start)
+    return bursts_all, no_obs, obs
 
 
-def obs_times(tt, no_obs, tstart=None):
+def remove_occulted(tte_bursts, no_obs):
+    """
+    Remove bursts during occulted intervals from GBM data.
+
+    """
+    for n in no_obs:
+        occ_ind = np.where((n[0] < tte_bursts) & (tte_bursts < n[1]))[0]
+        if len(occ_ind) > 0:
+            #print(occ_ind)
+            tte_bursts = np.delete(tte_bursts, occ_ind)
+
+    return tte_bursts
+
+def combine_tte_ctime(tte_bursts, ctime_seconds, datadir="./"):
+    """
+    Combine bursts from TTE and CTIME data in such a way that TTE
+    bursts will be used when there is TTE data available, and CTIME
+    bursts when there is not.
+
+    """
+
+    tte_data = np.loadtxt(datadir+"SGR1550jan22ttedata.txt")
+    bursts_all = []
+
+    tte_bursts = np.array(tte_bursts)
+
+    no_tte_start= 0.0
+    for t in tte_data:
+
+        no_tte_end = t[0]
+        tte_start = t[0]
+        tte_end = t[1]
+
+        bursts_ind = np.where((no_tte_start <= ctime_seconds) & (ctime_seconds <= no_tte_end))[0]
+        bursts_all.extend(ctime_seconds[bursts_ind])
+
+        bursts_ind = np.where((tte_start < tte_bursts) & (tte_bursts < tte_end))[0]
+        bursts_all.extend(tte_bursts[bursts_ind])
+
+        no_tte_start = t[1]
+
+    return np.array(bursts_all)
+
+
+
+def obs_times(no_obs, tstart=0.0):
     """
     Turn un-observed periods into observed periods
-        tt: burst time data
         no_obs: (L,2) array of start/end of unobserved time periods
     """
 
     ### for now, assume observations start at first time interval
-
-    if tstart is None:
-        tstart = tt[0]
 
     obs_start  = [tstart]
 
